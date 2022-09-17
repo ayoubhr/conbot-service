@@ -37,16 +37,13 @@ func responseParser(w http.ResponseWriter, fromCurrency string, toCurrency strin
 }
 
 func calcConversion(quantityDecimal, ratio float64) float64 {
-	conversion := ratio * quantityDecimal
-	return conversion
+	return ratio * quantityDecimal
 }
 
 func uriBuilder(fromCurrency, toCurrency string) string {
 	// Building the uri with the received query parameters fromCurrency and toCurrency,
 	// and quantity is auto-set to 1.0 to get the exchange ratio 1 on 1.
-	uri := "https://currency-exchange.p.rapidapi.com/exchange?from=" + fromCurrency + "&to=" + toCurrency + "&q=1.0"
-
-	return uri
+	return "https://currency-exchange.p.rapidapi.com/exchange?from=" + fromCurrency + "&to=" + toCurrency + "&q=1.0"
 }
 
 func exchangeRatioRequest(uri string) float64 {
@@ -66,7 +63,10 @@ func exchangeRatioRequest(uri string) float64 {
 	// Decodes the response value representing the rate of exchange between the currencies
 	// into a float variable and returns it.
 	var ratio float64
-	_ = json.NewDecoder(res.Body).Decode(&ratio)
+	err := json.NewDecoder(res.Body).Decode(&ratio)
+	if err != nil {
+		fmt.Println("Third party service is not available.")
+	}
 
 	return ratio
 }
@@ -85,19 +85,19 @@ func convert(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errMsg := "Something is wrong with the quantity parameter provided in the queryString."
 		errorParser(w, errMsg, http.StatusBadRequest)
-	} else {
-		// uri that will be used to perform a request.
-		uri := uriBuilder(fromCurrency, toCurrency)
-
-		// The request performed against a 3rd party service to get the exchange rate between 2 currencies.
-		ratio := exchangeRatioRequest(uri)
-
-		// Calculating the conversion.
-		conversion := calcConversion(quantityFloat, ratio)
-
-		// Parsing the response json that will be sent back to the client.
-		responseParser(w, fromCurrency, toCurrency, ratio, quantityFloat, conversion)
 	}
+
+	// uri that will be used to perform a request.
+	uri := uriBuilder(fromCurrency, toCurrency)
+
+	// The request performed against a 3rd party service to get the exchange rate between 2 currencies.
+	ratio := exchangeRatioRequest(uri)
+
+	// Calculating the conversion.
+	conversion := calcConversion(quantityFloat, ratio)
+
+	// Parsing the response json that will be sent back to the client.
+	responseParser(w, fromCurrency, toCurrency, ratio, quantityFloat, conversion)
 }
 
 func requestsHandler() {
@@ -107,13 +107,12 @@ func requestsHandler() {
 func loadEnvironment() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		fmt.Println("Could not load environment variables.")
-		os.Exit(1)
+		log.Fatalln("Could not load environment variables.")
 	}
 }
 
 func main() {
 	loadEnvironment()
 	requestsHandler()
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatalln(http.ListenAndServe(":8080", nil))
 }
